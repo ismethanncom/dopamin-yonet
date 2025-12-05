@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
+import '../../../../core/services/ai_coach_service.dart';
 
-/// AI Koç sayfası - Yapay zeka destekli sohbet
+/// AI Koç sayfası - Gemini AI destekli sohbet
 class AiCoachPage extends StatefulWidget {
   const AiCoachPage({super.key});
 
@@ -15,17 +15,47 @@ class _AiCoachPageState extends State<AiCoachPage> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
+  final AiCoachService _aiService = AiCoachService();
   bool _isTyping = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // AI greeting
-    _messages.add(_ChatMessage(
-      text: AppStrings.aiCoachGreeting,
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
+    _loadChatHistory();
+  }
+
+  Future<void> _loadChatHistory() async {
+    // Kullanıcı bağlamını güncelle
+    await _aiService.updateUserContext();
+    
+    // Eski mesajları yükle
+    final history = _aiService.getChatHistory();
+    
+    if (history.isEmpty) {
+      // İlk kez açılıyorsa karşılama mesajı
+      _messages.add(_ChatMessage(
+        text: 'Merhaba! Ben Dopamin Koçun. Bugün nasıl hissediyorsun?',
+        isUser: false,
+        timestamp: DateTime.now(),
+      ));
+    } else {
+      // Eski mesajları yükle
+      for (var msg in history) {
+        _messages.add(_ChatMessage(
+          text: msg.content,
+          isUser: msg.role == 'user',
+          timestamp: msg.timestamp,
+        ));
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      _scrollToBottom();
+    }
   }
 
   @override
@@ -35,9 +65,9 @@ class _AiCoachPageState extends State<AiCoachPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isTyping) return;
 
     setState(() {
       _messages.add(_ChatMessage(
@@ -51,52 +81,20 @@ class _AiCoachPageState extends State<AiCoachPage> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Simulate AI response
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
-          _messages.add(_ChatMessage(
-            text: _generateAIResponse(text),
-            isUser: false,
-            timestamp: DateTime.now(),
-          ));
-        });
-        _scrollToBottom();
-      }
-    });
-  }
-
-  String _generateAIResponse(String userMessage) {
-    // Simple response generation based on keywords
-    final lower = userMessage.toLowerCase();
-
-    if (lower.contains('istek') || lower.contains('dürtü')) {
-      return 'İstek anlarında en etkili yöntem, 60 saniyelik bir nefes egzersizi yapmak. '
-          '4 saniye nefes al, 7 saniye tut, 8 saniye ver. Bu süre içinde dürtü genellikle azalır. '
-          'Şu anda denemek ister misin?';
+    // Get AI response
+    final response = await _aiService.getResponse(text);
+    
+    if (mounted) {
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(
+          text: response,
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+      });
+      _scrollToBottom();
     }
-
-    if (lower.contains('motivasyon') || lower.contains('zor')) {
-      return 'Motivasyon düşüklüğü hissetmen çok normal. Unutma ki bu bir karakter zayıflığı değil. '
-          'Küçük bir adımla başlayalım: Bugün sadece 2 dakikalık bir görev yap. '
-          'Bu kadar basit bir şey bile dopamin dengesini olumlu etkileyebilir.';
-    }
-
-    if (lower.contains('uyku') || lower.contains('gece')) {
-      return 'Uyku düzeni dopamin dengesi için kritik. Gece 23:00\'ten sonra ekran kullanımı '
-          'dopamin sistemini bozar. Bu gece telefonu yataktan uzakta şarj etmeyi deneyebilir misin?';
-    }
-
-    if (lower.contains('başar') || lower.contains('iyi')) {
-      return 'Harika! İlerleme kaydettiğini görmek çok güzel. Her küçük başarı beyninde '
-          'yeni nöral yollar oluşturuyor. Bu tutarlılığı korumaya devam et. '
-          'Bugün kendini nasıl ödüllendireceksin?';
-    }
-
-    return 'Seni dinliyorum. Hissettiğin şeyler geçerli ve anlaşılabilir. '
-        'Dopamin dengesini yönetmek bir süreç ve sen doğru yoldasın. '
-        'Bugün sana nasıl yardımcı olabilirim?';
   }
 
   void _scrollToBottom() {
@@ -147,7 +145,9 @@ class _AiCoachPageState extends State<AiCoachPage> {
           ],
         ),
       ),
-      body: Column(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
         children: [
           // Quick actions
           _buildQuickActions(),

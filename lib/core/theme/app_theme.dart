@@ -146,8 +146,8 @@ class AppTheme {
     );
   }
 
-  static CardTheme get _cardTheme {
-    return CardTheme(
+  static CardThemeData get _cardTheme {
+    return CardThemeData(
       color: AppColors.cardBackground,
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -282,8 +282,8 @@ class AppTheme {
     );
   }
 
-  static DialogTheme get _dialogTheme {
-    return DialogTheme(
+  static DialogThemeData get _dialogTheme {
+    return DialogThemeData(
       backgroundColor: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
